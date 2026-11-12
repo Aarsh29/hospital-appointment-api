@@ -1,92 +1,88 @@
 import prisma from "./lib/prisma.js";
 
-async function ensureAppointment(
-  patientId: number,
-  doctorId: number,
-  date: Date,
-  notes: string,
-) {
-  const existing = await prisma.appointment.findFirst({
-    where: { patientId, doctorId, notes },
-  });
-
-  if (existing !== null) {
-    return existing;
+async function main() {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("The development seed cannot run in production.");
   }
 
-  return prisma.appointment.create({
-    data: {
-      patientId,
-      doctorId,
-      appointmentDate: date,
-      status: "scheduled",
-      notes,
+  const [database] = await prisma.$queryRaw<Array<{ databaseName: string }>>`
+    SELECT current_database() AS "databaseName"
+  `;
+
+  if (database?.databaseName !== "hospital_api") {
+    const databaseName = database?.databaseName ?? "unknown";
+    throw new Error(
+      `The seed can only reset the hospital_api database; connected to "${databaseName}".`,
+    );
+  }
+
+  await prisma.$transaction(
+    async (transaction) => {
+      await transaction.appointment.deleteMany();
+      await transaction.patient.deleteMany();
+      await transaction.doctor.deleteMany();
+
+      const drPriya = await transaction.doctor.create({
+        data: {
+          name: "Dr. Priya Sharma",
+          specialty: "Cardiology",
+          email: "priya.sharma@hospital.io",
+        },
+      });
+
+      const drVikram = await transaction.doctor.create({
+        data: {
+          name: "Dr. Vikram Rao",
+          specialty: "Neurology",
+          email: "vikram.rao@hospital.io",
+        },
+      });
+
+      const aditi = await transaction.patient.create({
+        data: {
+          name: "Aditi Mehra",
+          email: "aditi@example.com",
+          phone: "9876543210",
+          dateOfBirth: new Date("1990-04-12"),
+        },
+      });
+
+      const rahul = await transaction.patient.create({
+        data: { name: "Rahul Singh", email: "rahul@example.com" },
+      });
+
+      await transaction.appointment.createMany({
+        data: [
+          {
+            patientId: aditi.id,
+            doctorId: drPriya.id,
+            appointmentDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            status: "scheduled",
+            notes: "Annual cardiac checkup",
+          },
+          {
+            patientId: rahul.id,
+            doctorId: drVikram.id,
+            appointmentDate: new Date(Date.now() + 48 * 60 * 60 * 1000),
+            status: "scheduled",
+            notes: "Neurology consultation",
+          },
+        ],
+      });
+
+      const [doctorCount, patientCount, appointmentCount] = await Promise.all([
+        transaction.doctor.count(),
+        transaction.patient.count(),
+        transaction.appointment.count(),
+      ]);
+
+      console.log("Seed complete:");
+      console.log(" Doctors:", doctorCount);
+      console.log(" Patients:", patientCount);
+      console.log(" Appointments:", appointmentCount);
     },
-  });
-}
-
-async function main() {
-  const drPriya = await prisma.doctor.upsert({
-    where: { email: "priya.sharma@hospital.io" },
-    update: { name: "Dr. Priya Sharma", specialty: "Cardiology" },
-    create: {
-      name: "Dr. Priya Sharma",
-      specialty: "Cardiology",
-      email: "priya.sharma@hospital.io",
-    },
-  });
-
-  const drVikram = await prisma.doctor.upsert({
-    where: { email: "vikram.rao@hospital.io" },
-    update: { name: "Dr. Vikram Rao", specialty: "Neurology" },
-    create: {
-      name: "Dr. Vikram Rao",
-      specialty: "Neurology",
-      email: "vikram.rao@hospital.io",
-    },
-  });
-
-  const aditi = await prisma.patient.upsert({
-    where: { email: "aditi@example.com" },
-    update: {
-      name: "Aditi Mehra",
-      phone: "9876543210",
-      dateOfBirth: new Date("1990-04-12"),
-    },
-    create: {
-      name: "Aditi Mehra",
-      email: "aditi@example.com",
-      phone: "9876543210",
-      dateOfBirth: new Date("1990-04-12"),
-    },
-  });
-
-  const rahul = await prisma.patient.upsert({
-    where: { email: "rahul@example.com" },
-    update: { name: "Rahul Singh" },
-    create: { name: "Rahul Singh", email: "rahul@example.com" },
-  });
-
-  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  const dayAfterTomorrow = new Date(Date.now() + 48 * 60 * 60 * 1000);
-
-  await ensureAppointment(
-    aditi.id,
-    drPriya.id,
-    tomorrow,
-    "Seed: annual cardiac checkup",
+    { timeout: 10_000 },
   );
-  await ensureAppointment(
-    rahul.id,
-    drVikram.id,
-    dayAfterTomorrow,
-    "Seed: neurology consultation",
-  );
-
-  console.log("Seed complete:");
-  console.log(" Doctors:", 2);
-  console.log(" Patients:", 2);
-  console.log(" Appointments:", 2);
 }
 
 main()
