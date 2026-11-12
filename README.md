@@ -23,7 +23,11 @@ tables without changing their names or column types.
    npm run db:seed
    ```
 
-   Seeding is repeatable and does not clear unrelated database records.
+   Seeding resets all records in the `appointments`, `patients`, and `doctors`
+   tables, then inserts the same fixtures in one transaction. It is repeatable,
+   reports the resulting table counts, and rolls back if any step fails. It
+   refuses to run when `NODE_ENV=production` or the database name is not
+   `hospital_api`; use it only with a disposable development database.
 5. Run the CRUD exercise and type check:
 
    ```sh

@@ -1,4 +1,7 @@
-node_modules/
-.env
+# Local secrets and installed dependencies
+/node_modules/
+/.env
+
+# Generated build outputs
 /generated/prisma/
 /dist/
