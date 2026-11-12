@@ -108,6 +108,26 @@ async function main() {
     const cancelledCount = await cancelAllPatientAppointments(patient.id);
     console.log("Additional appointments cancelled:", cancelledCount);
 
+    let doctorDeleteBlocked = false;
+    try {
+      await deleteDoctor(doctor.id);
+    } catch (error: unknown) {
+      if (
+        error instanceof Error &&
+        error.message.startsWith("Cannot delete a doctor with appointments")
+      ) {
+        doctorDeleteBlocked = true;
+      } else {
+        throw error;
+      }
+    }
+
+    if (!doctorDeleteBlocked) {
+      doctorId = undefined;
+      throw new Error("Deleting a doctor with appointments unexpectedly succeeded.");
+    }
+    console.log("Delete guard: appointments prevent doctor deletion.");
+
     console.log("\n── Cleanup ───────────────────────────");
     for (const appointmentId of appointmentIds) {
       await deleteAppointment(appointmentId);
